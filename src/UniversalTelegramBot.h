@@ -83,6 +83,7 @@ public:
 
   bool readHTTPAnswer(String &body, String &headers);
   bool getMe();
+  String GetName() { return name; }
 
   bool sendSimpleMessage(const String& chat_id, const String& text, const String& parse_mode);
   bool sendMessage(const String& chat_id, const String& text, const String& parse_mode = "", int message_id = 0);
@@ -116,6 +117,9 @@ public:
 
   String buildCommand(const String& cmd);
 
+  bool getChatDescription(String chat_id, String & text);
+  bool setChatDescription(String chat_id, String text);
+  bool restrictChatMember(String chat_id, String user_id, bool permit, String until_date);
   int getUpdates(long offset);
   bool checkForOkResponse(const String& response);
   telegramMessage messages[HANDLE_MESSAGES];
@@ -126,7 +130,7 @@ public:
   unsigned int waitForResponse = 1500;
   int _lastError;
   int last_sent_message_id = 0;
-  int maxMessageLength = 1500;
+  int maxMessageLength = 10500;
 
 private:
   // JsonObject * parseUpdates(String response);
