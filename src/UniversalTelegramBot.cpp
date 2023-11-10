@@ -235,7 +235,7 @@ String UniversalTelegramBot::sendMultipartFormDataToTelegram(
     client->print(buildCommand(command));
     client->println(F(" HTTP/1.1"));
     // Host header
-    client->println(F("Host: " TELEGRAM_HOST)); // bugfix - https://github.com/witnessmenow/Universal-Arduino-Telegram-Bot/issues/186
+    client->println(F("Host: " TELEGRAM_HOST));
     client->println(F("User-Agent: arduino/1.0"));
     client->println(F("Accept: */*"));
 
@@ -267,6 +267,7 @@ String UniversalTelegramBot::sendMultipartFormDataToTelegram(
         #endif
         byte buffer[512];
         int count = 0;
+
         while (moreDataAvailableCallback()) {
             buffer[count] = getNextByteCallback();
             count++;
@@ -491,6 +492,8 @@ bool UniversalTelegramBot::processResult(JsonObject result, int messageIndex) {
     messages[messageIndex].text = F("");
     messages[messageIndex].from_id = F("");
     messages[messageIndex].from_name = F("");
+    messages[messageIndex].hasPhoto = false;
+    messages[messageIndex].file_caption = F("");
     messages[messageIndex].longitude = 0;
     messages[messageIndex].latitude = 0;
     messages[messageIndex].reply_to_message_id = 0;
@@ -506,10 +509,13 @@ bool UniversalTelegramBot::processResult(JsonObject result, int messageIndex) {
       messages[messageIndex].chat_id = message["chat"]["id"].as<String>();
       messages[messageIndex].chat_title = message["chat"]["title"].as<String>();
       messages[messageIndex].hasDocument = false;
-      messages[messageIndex].message_id = message["message_id"].as<int>();  // added message id
+      messages[messageIndex].message_id = message["message_id"].as<int>();
       if (message.containsKey("text")) {
         messages[messageIndex].text = message["text"].as<String>();
-          
+
+      } else if (message.containsKey("photo")) {
+        messages[messageIndex].hasPhoto = true;
+        messages[messageIndex].file_caption = message["caption"].as<String>();
       } else if (message.containsKey("location")) {
         messages[messageIndex].longitude = message["location"]["longitude"].as<float>();
         messages[messageIndex].latitude  = message["location"]["latitude"].as<float>();
@@ -606,9 +612,10 @@ bool UniversalTelegramBot::sendSimpleMessage(const String& chat_id, const String
   return sent;
 }
 
-bool UniversalTelegramBot::sendMessage(const String& chat_id, const String& text,
-                                       const String& parse_mode, int message_id) { // added message_id
 
+bool UniversalTelegramBot::sendMessage(const String& chat_id, const String& text,
+                                       const String& parse_mode, int message_id)
+{
   DynamicJsonDocument payload(maxMessageLength);
   payload["chat_id"] = chat_id;
   payload["text"] = text;
@@ -622,10 +629,28 @@ bool UniversalTelegramBot::sendMessage(const String& chat_id, const String& text
   return sendPostMessage(payload.as<JsonObject>(), message_id); // if message id == 0 then edit is false, else edit is true
 }
 
+
+/*
+bool UniversalTelegramBot::editMessage(const String& chat_id, const String & message_id, const String& text,
+                                       const String& parse_mode)
+{
+  DynamicJsonDocument payload(maxMessageLength);
+  payload["chat_id"] = chat_id;
+  payload["text"] = text;
+  payload["message_id"] = message_id;
+
+  if (parse_mode != "")
+    payload["parse_mode"] = parse_mode;
+
+  return sendPostMessage(payload.as<JsonObject>(), EDIT_TEXT);
+}
+*/
+
+
 bool UniversalTelegramBot::sendMessageWithReplyKeyboard(
     const String& chat_id, const String& text, const String& parse_mode, const String& keyboard,
-    bool resize, bool oneTime, bool selective) {
-    
+    bool resize, bool oneTime, bool selective, bool removeKeyboard)
+{
   DynamicJsonDocument payload(maxMessageLength);
   payload["chat_id"] = chat_id;
   payload["text"] = text;
@@ -634,19 +659,24 @@ bool UniversalTelegramBot::sendMessageWithReplyKeyboard(
     payload["parse_mode"] = parse_mode;
 
   JsonObject replyMarkup = payload.createNestedObject("reply_markup");
-    
+
   replyMarkup["keyboard"] = serialized(keyboard);
 
   // Telegram defaults these values to false, so to decrease the size of the
   // payload we will only send them if needed
-  if (resize)
-    replyMarkup["resize_keyboard"] = resize;
+  if (removeKeyboard)
+    replyMarkup["remove_keyboard"] = removeKeyboard;
+  else
+  {
+    if (resize)
+      replyMarkup["resize_keyboard"] = resize;
 
-  if (oneTime)
-    replyMarkup["one_time_keyboard"] = oneTime;
+    if (oneTime)
+      replyMarkup["one_time_keyboard"] = oneTime;
 
-  if (selective)
-    replyMarkup["selective"] = selective;
+    if (selective)
+      replyMarkup["selective"] = selective;
+  }
 
   return sendPostMessage(payload.as<JsonObject>());
 }
@@ -686,10 +716,13 @@ bool UniversalTelegramBot::sendPostMessage(JsonObject payload, bool edit) { // a
   #endif 
   unsigned long sttime = millis();
 
-  if (payload.containsKey("text")) {
-    while (millis() < sttime + 8000) { // loop for a while to send the message
-        String response = sendPostToTelegram((edit ? BOT_CMD("editMessageText") : BOT_CMD("sendMessage")), payload); // if edit is true we send a editMessageText CMD
-         #ifdef TELEGRAM_DEBUG  
+  if (payload.containsKey("text"))
+  {
+    String response;
+    while (millis() < sttime + 8000ul)
+    { // loop for a while to send the message
+      String response = sendPostToTelegram((edit ? BOT_CMD("editMessageText") : BOT_CMD("sendMessage")), payload); // if edit is true we send a editMessageText CMD
+#ifdef TELEGRAM_DEBUG  
         Serial.println(response);
       #endif
       sent = checkForOkResponse(response);

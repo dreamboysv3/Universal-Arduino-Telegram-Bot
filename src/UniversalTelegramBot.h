@@ -22,7 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #ifndef UniversalTelegramBot_h
 #define UniversalTelegramBot_h
 
-#define TELEGRAM_DEBUG 1
+//#define TELEGRAM_DEBUG 1
 #define ARDUINOJSON_DECODE_UNICODE 1
 #define ARDUINOJSON_USE_LONG_LONG 1
 #include <Arduino.h>
@@ -30,12 +30,14 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #include <Client.h>
 #include <TelegramCertificate.h>
 
+#define TELEGRAM_MAX_MESSAGE_LENGTH 10500
 #define TELEGRAM_HOST "api.telegram.org"
 #define TELEGRAM_SSL_PORT 443
 #define HANDLE_MESSAGES 1
 
+
 //unmark following line to enable debug mode
-//#define TELEGRAM_DEBUG
+//#define _debug
 
 typedef bool (*MoreDataAvailable)();
 typedef byte (*GetNextByte)();
@@ -54,6 +56,7 @@ struct telegramMessage {
   String file_path;
   String file_name;
   bool hasDocument;
+  bool hasPhoto;
   long file_size;
   float longitude;
   float latitude;
@@ -87,10 +90,12 @@ public:
 
   bool sendSimpleMessage(const String& chat_id, const String& text, const String& parse_mode);
   bool sendMessage(const String& chat_id, const String& text, const String& parse_mode = "", int message_id = 0);
+  //  bool editMessage(const String& chat_id, const String & message_id, const String& text,
+  //		   const String& parse_mode = "");
   bool sendMessageWithReplyKeyboard(const String& chat_id, const String& text,
                                     const String& parse_mode, const String& keyboard,
                                     bool resize = false, bool oneTime = false,
-                                    bool selective = false);
+                                    bool selective = false, bool removeKeyboard = false);
   bool sendMessageWithInlineKeyboard(const String& chat_id, const String& text,
                                      const String& parse_mode, const String& keyboard, int message_id = 0);
 
@@ -124,6 +129,7 @@ public:
   bool restrictChatMember(String chat_id, String user_id, bool permit, String until_date);
   int getUpdates(long offset);
   bool checkForOkResponse(const String& response);
+  int getLastSentMessageId() { return last_sent_message_id; }
   telegramMessage messages[HANDLE_MESSAGES];
   long last_message_received;
   String name;
@@ -132,7 +138,7 @@ public:
   unsigned int waitForResponse = 1500;
   int _lastError;
   int last_sent_message_id = 0;
-  int maxMessageLength = 10500;
+  int maxMessageLength = TELEGRAM_MAX_MESSAGE_LENGTH;
 
 private:
   // JsonObject * parseUpdates(String response);
